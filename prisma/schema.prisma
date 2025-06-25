@@ -1,0 +1,114 @@
+// prisma/schema.prisma
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql" // または "mysql", "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+// ユーザー（従業員）管理
+model User {
+  id          String   @id @default(cuid())
+  email       String   @unique
+  name        String
+  employeeId  String   @unique // 従業員ID
+  password    String   // ハッシュ化されたパスワード
+  department  String   // 部署
+  position    String   // 役職
+  isActive    Boolean  @default(true)
+  role        Role     @default(EMPLOYEE)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  // リレーション
+  attendanceRecords AttendanceRecord[]
+  sessions         Session[]
+
+  @@map("users")
+}
+
+// 勤怠記録
+model AttendanceRecord {
+  id             String            @id @default(cuid())
+  userId         String
+  date           DateTime          @db.Date
+  clockIn        DateTime?
+  clockOut       DateTime?
+  breakStart     DateTime?
+  breakEnd       DateTime?
+  workHours      Float             @default(0)
+  overtimeHours  Float             @default(0)
+  status         AttendanceStatus  @default(PRESENT)
+  note           String?
+  approvedBy     String?           // 承認者ID
+  approvedAt     DateTime?         // 承認日時
+  createdAt      DateTime          @default(now())
+  updatedAt      DateTime          @updatedAt
+
+  // リレーション
+  user           User              @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  // 複合ユニークインデックス（同じ日に複数の記録を防ぐ）
+  @@unique([userId, date])
+  @@map("attendance_records")
+}
+
+// セッション管理
+model Session {
+  id        String   @id @default(cuid())
+  userId    String
+  token     String   @unique
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+
+  // リレーション
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("sessions")
+}
+
+// 店舗設定
+model StoreSettings {
+  id                String   @id @default(cuid())
+  storeName         String
+  workStartTime     String   // "09:00"
+  workEndTime       String   // "18:00"
+  breakDuration     Int      @default(60) // 分
+  overtimeThreshold Float    @default(8.0) // 時間
+  timezone          String   @default("Asia/Tokyo")
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  @@map("store_settings")
+}
+
+// 祝日・休日管理
+model Holiday {
+  id          String   @id @default(cuid())
+  date        DateTime @db.Date
+  name        String
+  isRecurring Boolean  @default(false) // 毎年繰り返し
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@unique([date])
+  @@map("holidays")
+}
+
+// Enum定義
+enum Role {
+  ADMIN     // 管理者
+  MANAGER   // 店長・マネージャー
+  EMPLOYEE  // 一般従業員
+}
+
+enum AttendanceStatus {
+  PRESENT     // 出勤
+  ABSENT      // 欠勤
+  LATE        // 遅刻
+  EARLY_LEAVE // 早退
+  HOLIDAY     // 休日
+  SICK_LEAVE  // 病欠
+}
