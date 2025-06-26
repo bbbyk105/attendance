@@ -76,7 +76,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       console.error("Logout error:", error);
     } finally {
       setUser(null);
-      window.location.href = "/login";
+      window.location.href = "/";
     }
   };
 

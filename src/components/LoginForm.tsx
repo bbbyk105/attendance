@@ -1,7 +1,6 @@
-// components/LoginForm.tsx
 "use client";
 
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import {
   Card,
@@ -13,7 +12,24 @@ import {
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Alert, AlertDescription } from "@/components/ui/alert";
-import { Eye, EyeOff, LogIn, Store } from "lucide-react";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import { Eye, EyeOff, LogIn, Store, User, Users } from "lucide-react";
+
+interface LoginUser {
+  id: string;
+  name: string;
+  email: string;
+  employeeId: string;
+  department: string;
+  position: string;
+  role: string;
+}
 
 interface LoginFormProps {
   onLogin: (email: string, password: string) => Promise<boolean>;
@@ -26,27 +42,50 @@ export const LoginForm: React.FC<LoginFormProps> = ({
   isLoading,
   error,
 }) => {
-  const [formData, setFormData] = useState({
-    email: "",
-    password: "",
-  });
+  const [users, setUsers] = useState<LoginUser[]>([]);
+  const [selectedUser, setSelectedUser] = useState<LoginUser | null>(null);
+  const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
+  const [isLoadingUsers, setIsLoadingUsers] = useState(true);
+  const [usersError, setUsersError] = useState<string>("");
   const [validationErrors, setValidationErrors] = useState<{
     [key: string]: string;
   }>({});
 
+  // ユーザー一覧取得
+  useEffect(() => {
+    fetchUsers();
+  }, []);
+
+  const fetchUsers = async () => {
+    try {
+      setIsLoadingUsers(true);
+      const response = await fetch("/api/auth/users");
+
+      if (response.ok) {
+        const data = await response.json();
+        setUsers(data.users);
+      } else {
+        setUsersError("ユーザー一覧の取得に失敗しました");
+      }
+    } catch (error) {
+      console.error("Error fetching users:", error);
+      setUsersError("サーバーエラーが発生しました");
+    } finally {
+      setIsLoadingUsers(false);
+    }
+  };
+
   const validateForm = () => {
     const errors: { [key: string]: string } = {};
 
-    if (!formData.email) {
-      errors.email = "メールアドレスを入力してください";
-    } else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(formData.email)) {
-      errors.email = "正しいメールアドレス形式で入力してください";
+    if (!selectedUser) {
+      errors.user = "ユーザーを選択してください";
     }
 
-    if (!formData.password) {
+    if (!password) {
       errors.password = "パスワードを入力してください";
-    } else if (formData.password.length < 6) {
+    } else if (password.length < 6) {
       errors.password = "パスワードは6文字以上で入力してください";
     }
 
@@ -61,24 +100,74 @@ export const LoginForm: React.FC<LoginFormProps> = ({
       return;
     }
 
-    const success = await onLogin(formData.email, formData.password);
+    if (!selectedUser) return;
+
+    const success = await onLogin(selectedUser.email, password);
     if (!success) {
-      setFormData((prev) => ({ ...prev, password: "" }));
+      setPassword("");
     }
   };
 
-  const handleInputChange = (field: string, value: string) => {
-    setFormData((prev) => ({ ...prev, [field]: value }));
+  const handleUserSelect = (userId: string) => {
+    const user = users.find((u) => u.id === userId);
+    setSelectedUser(user || null);
 
-    // リアルタイムバリデーション
-    if (validationErrors[field]) {
+    // ユーザー選択時にバリデーションエラーをクリア
+    if (validationErrors.user) {
       setValidationErrors((prev) => {
         const newErrors = { ...prev };
-        delete newErrors[field];
+        delete newErrors.user;
         return newErrors;
       });
     }
   };
+
+  const handlePasswordChange = (value: string) => {
+    setPassword(value);
+
+    // パスワード入力時にバリデーションエラーをクリア
+    if (validationErrors.password) {
+      setValidationErrors((prev) => {
+        const newErrors = { ...prev };
+        delete newErrors.password;
+        return newErrors;
+      });
+    }
+  };
+
+  if (isLoadingUsers) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-blue-50 to-indigo-100 p-4">
+        <Card className="w-full max-w-md shadow-xl">
+          <CardContent className="flex flex-col items-center justify-center py-12">
+            <div className="w-8 h-8 border-4 border-blue-600 border-t-transparent rounded-full animate-spin mb-4" />
+            <p className="text-gray-600">ユーザー情報を読み込み中...</p>
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
+
+  if (usersError) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-blue-50 to-indigo-100 p-4">
+        <Card className="w-full max-w-md shadow-xl">
+          <CardContent className="py-12">
+            <Alert variant="destructive">
+              <AlertDescription>{usersError}</AlertDescription>
+            </Alert>
+            <Button
+              className="w-full mt-4"
+              onClick={fetchUsers}
+              variant="outline"
+            >
+              再試行
+            </Button>
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-blue-50 to-indigo-100 p-4">
@@ -91,7 +180,7 @@ export const LoginForm: React.FC<LoginFormProps> = ({
           </div>
           <CardTitle className="text-2xl font-bold">勤怠管理システム</CardTitle>
           <CardDescription>
-            店舗スタッフ専用のログインページです
+            ユーザーを選択してログインしてください
           </CardDescription>
         </CardHeader>
 
@@ -104,21 +193,47 @@ export const LoginForm: React.FC<LoginFormProps> = ({
             )}
 
             <div className="space-y-2">
-              <Label htmlFor="email">メールアドレス</Label>
-              <Input
-                id="email"
-                type="email"
-                placeholder="your-email@store.com"
-                value={formData.email}
-                onChange={(e) => handleInputChange("email", e.target.value)}
-                className={validationErrors.email ? "border-red-500" : ""}
-                disabled={isLoading}
-                autoComplete="email"
-              />
-              {validationErrors.email && (
-                <p className="text-sm text-red-500">{validationErrors.email}</p>
+              <Label htmlFor="user">ユーザー選択</Label>
+              <Select onValueChange={handleUserSelect} disabled={isLoading}>
+                <SelectTrigger
+                  className={validationErrors.user ? "border-red-500" : ""}
+                >
+                  <SelectValue placeholder="ユーザーを選択してください" />
+                </SelectTrigger>
+                <SelectContent>
+                  {users.map((user) => (
+                    <SelectItem key={user.id} value={user.id}>
+                      <div className="flex items-center gap-2 w-full">
+                        <User className="h-4 w-4" />
+                        <div className="flex flex-col items-start">
+                          <span className="font-medium">{user.name}</span>
+                          <span className="text-xs text-gray-500">
+                            {user.employeeId} | {user.department}
+                          </span>
+                        </div>
+                      </div>
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              {validationErrors.user && (
+                <p className="text-sm text-red-500">{validationErrors.user}</p>
               )}
             </div>
+
+            {selectedUser && (
+              <div className="p-3 bg-gray-50 rounded-lg border">
+                <div className="flex items-center gap-2 mb-2">
+                  <User className="h-4 w-4 text-gray-600" />
+                  <span className="font-medium">{selectedUser.name}</span>
+                </div>
+                <div className="text-sm text-gray-600 space-y-1">
+                  <p>従業員ID: {selectedUser.employeeId}</p>
+                  <p>部署: {selectedUser.department}</p>
+                  <p>役職: {selectedUser.position}</p>
+                </div>
+              </div>
+            )}
 
             <div className="space-y-2">
               <Label htmlFor="password">パスワード</Label>
@@ -127,14 +242,12 @@ export const LoginForm: React.FC<LoginFormProps> = ({
                   id="password"
                   type={showPassword ? "text" : "password"}
                   placeholder="パスワードを入力"
-                  value={formData.password}
-                  onChange={(e) =>
-                    handleInputChange("password", e.target.value)
-                  }
+                  value={password}
+                  onChange={(e) => handlePasswordChange(e.target.value)}
                   className={
                     validationErrors.password ? "border-red-500 pr-10" : "pr-10"
                   }
-                  disabled={isLoading}
+                  disabled={isLoading || !selectedUser}
                   autoComplete="current-password"
                 />
                 <Button
@@ -143,7 +256,7 @@ export const LoginForm: React.FC<LoginFormProps> = ({
                   size="sm"
                   className="absolute right-2 top-1/2 -translate-y-1/2 h-6 w-6 p-0"
                   onClick={() => setShowPassword(!showPassword)}
-                  disabled={isLoading}
+                  disabled={isLoading || !selectedUser}
                 >
                   {showPassword ? (
                     <EyeOff className="h-4 w-4" />
@@ -159,7 +272,11 @@ export const LoginForm: React.FC<LoginFormProps> = ({
               )}
             </div>
 
-            <Button type="submit" className="w-full" disabled={isLoading}>
+            <Button
+              type="submit"
+              className="w-full"
+              disabled={isLoading || !selectedUser}
+            >
               {isLoading ? (
                 <div className="flex items-center gap-2">
                   <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
@@ -176,12 +293,13 @@ export const LoginForm: React.FC<LoginFormProps> = ({
 
           <div className="mt-6 pt-6 border-t border-gray-200">
             <div className="text-center text-sm text-gray-600">
-              <p className="mb-2">デモアカウント:</p>
+              <div className="flex items-center justify-center gap-2 mb-2">
+                <Users className="h-4 w-4" />
+                <span>登録ユーザー数: {users.length}名</span>
+              </div>
               <div className="bg-gray-50 p-3 rounded text-left">
-                <p>
-                  <strong>管理者:</strong>
-                </p>
-                <p>メール: admin@store.com</p>
+                <p className="font-medium mb-2">デモアカウント情報:</p>
+                <p>管理者ユーザーを選択</p>
                 <p>パスワード: admin123</p>
               </div>
             </div>

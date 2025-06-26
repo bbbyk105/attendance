@@ -1,16 +1,22 @@
 // lib/prisma.ts
 import { PrismaClient, Prisma } from "@prisma/client";
+import { withAccelerate } from "@prisma/extension-accelerate";
 import bcrypt from "bcryptjs";
 
+// 拡張されたPrismaClientの型定義
+type ExtendedPrismaClient = ReturnType<typeof createPrismaClient>;
+
+function createPrismaClient() {
+  return new PrismaClient({
+    log: process.env.NODE_ENV === "development" ? ["query"] : [],
+  }).$extends(withAccelerate());
+}
+
 const globalForPrisma = globalThis as unknown as {
-  prisma: PrismaClient | undefined;
+  prisma: ExtendedPrismaClient | undefined;
 };
 
-export const prisma =
-  globalForPrisma.prisma ??
-  new PrismaClient({
-    log: process.env.NODE_ENV === "development" ? ["query"] : [],
-  });
+export const prisma = globalForPrisma.prisma ?? createPrismaClient();
 
 if (process.env.NODE_ENV !== "production") globalForPrisma.prisma = prisma;
 
@@ -31,25 +37,32 @@ export async function disconnectDatabase(): Promise<void> {
   await prisma.$disconnect();
 }
 
-// トランザクション実行ヘルパー
+// トランザクション実行ヘルパー（修正版）
 export async function withTransaction<T>(
-  callback: (tx: Prisma.TransactionClient) => Promise<T>
+  callback: (
+    tx: Omit<
+      PrismaClient,
+      "$connect" | "$disconnect" | "$on" | "$transaction" | "$use" | "$extends"
+    >
+  ) => Promise<T>
 ): Promise<T> {
-  return await prisma.$transaction(callback);
+  return await (prisma as unknown as PrismaClient).$transaction(callback);
 }
 
 // データベース初期化（開発用）
 export async function initializeDatabase(): Promise<boolean> {
   try {
     // 管理者ユーザーが存在しない場合は作成
-    const adminExists = await prisma.user.findFirst({
+    const adminExists = await (
+      prisma as unknown as PrismaClient
+    ).user.findFirst({
       where: { role: "ADMIN" },
     });
 
     if (!adminExists) {
       const hashedPassword = await bcrypt.hash("admin123", 12);
 
-      await prisma.user.create({
+      await (prisma as unknown as PrismaClient).user.create({
         data: {
           email: "admin@store.com",
           name: "管理者",
@@ -65,10 +78,12 @@ export async function initializeDatabase(): Promise<boolean> {
     }
 
     // 店舗設定が存在しない場合は作成
-    const storeSettings = await prisma.storeSettings.findFirst();
+    const storeSettings = await (
+      prisma as unknown as PrismaClient
+    ).storeSettings.findFirst();
 
     if (!storeSettings) {
-      await prisma.storeSettings.create({
+      await (prisma as unknown as PrismaClient).storeSettings.create({
         data: {
           storeName: "店舗名",
           workStartTime: "09:00",
@@ -109,7 +124,7 @@ type UpdateUserData = Partial<Omit<CreateUserData, "password">> & {
 // ユーザー操作
 export class UserService {
   static async findByEmail(email: string) {
-    return await prisma.user.findUnique({
+    return await (prisma as unknown as PrismaClient).user.findUnique({
       where: { email },
       select: {
         id: true,
@@ -128,7 +143,7 @@ export class UserService {
   }
 
   static async findByEmployeeId(employeeId: string) {
-    return await prisma.user.findUnique({
+    return await (prisma as unknown as PrismaClient).user.findUnique({
       where: { employeeId },
       select: {
         id: true,
@@ -146,7 +161,7 @@ export class UserService {
   }
 
   static async createUser(userData: CreateUserData) {
-    return await prisma.user.create({
+    return await (prisma as unknown as PrismaClient).user.create({
       data: userData,
       select: {
         id: true,
@@ -164,7 +179,7 @@ export class UserService {
   }
 
   static async updateUser(id: string, updateData: UpdateUserData) {
-    return await prisma.user.update({
+    return await (prisma as unknown as PrismaClient).user.update({
       where: { id },
       data: updateData,
       select: {
@@ -182,7 +197,7 @@ export class UserService {
   }
 
   static async getAllUsers() {
-    return await prisma.user.findMany({
+    return await (prisma as unknown as PrismaClient).user.findMany({
       select: {
         id: true,
         email: true,
@@ -242,7 +257,9 @@ export class AttendanceService {
     const today = new Date();
     today.setHours(0, 0, 0, 0);
 
-    return await prisma.attendanceRecord.findUnique({
+    return await (
+      prisma as unknown as PrismaClient
+    ).attendanceRecord.findUnique({
       where: {
         userId_date: {
           userId,
@@ -262,7 +279,7 @@ export class AttendanceService {
   }
 
   static async createAttendanceRecord(data: CreateAttendanceData) {
-    return await prisma.attendanceRecord.create({
+    return await (prisma as unknown as PrismaClient).attendanceRecord.create({
       data,
       include: {
         user: {
@@ -280,7 +297,7 @@ export class AttendanceService {
     id: string,
     updateData: UpdateAttendanceData
   ) {
-    return await prisma.attendanceRecord.update({
+    return await (prisma as unknown as PrismaClient).attendanceRecord.update({
       where: { id },
       data: updateData,
       include: {
@@ -311,7 +328,7 @@ export class AttendanceService {
       };
     }
 
-    return await prisma.attendanceRecord.findMany({
+    return await (prisma as unknown as PrismaClient).attendanceRecord.findMany({
       where: whereClause,
       include: {
         user: {
