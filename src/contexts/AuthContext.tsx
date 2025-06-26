@@ -28,8 +28,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       } else {
         setUser(null);
       }
-    } catch (error) {
-      console.error("Auth check failed:", error);
+    } catch {
       setUser(null);
     } finally {
       setIsLoading(false);
@@ -42,9 +41,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
       const response = await fetch("/api/auth/login", {
         method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
+        headers: { "Content-Type": "application/json" },
         credentials: "include",
         body: JSON.stringify({ email, password }),
       });
@@ -54,12 +51,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       if (response.ok && data.success) {
         setUser(data.user);
         return true;
-      } else {
-        console.error("Login failed:", data.message);
-        return false;
       }
-    } catch (error) {
-      console.error("Login error:", error);
+      return false;
+    } catch {
       return false;
     } finally {
       setIsLoading(false);
@@ -72,8 +66,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         method: "POST",
         credentials: "include",
       });
-    } catch (error) {
-      console.error("Logout error:", error);
+    } catch {
+      /* 非表示 */
     } finally {
       setUser(null);
       window.location.href = "/";
