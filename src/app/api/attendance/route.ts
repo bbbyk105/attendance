@@ -21,6 +21,7 @@ export async function GET(request: NextRequest) {
     const limit = parseInt(url.searchParams.get("limit") || "50");
     const offset = parseInt(url.searchParams.get("offset") || "0");
 
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const filters: any = {
       limit,
       offset,
