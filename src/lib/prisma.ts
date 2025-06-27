@@ -253,9 +253,29 @@ interface AttendanceFilters {
 
 // 勤怠記録操作
 export class AttendanceService {
-  static async getTodayAttendance(userId: string) {
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
+  /**
+   * 指定されたユーザーの今日の勤怠記録を取得
+   * @param userId ユーザーID
+   * @param targetDate 対象日（省略時は日本時間の今日）
+   */
+  static async getTodayAttendance(userId: string, targetDate?: Date) {
+    let today: Date;
+
+    if (targetDate) {
+      // 引数で日付が指定された場合はそれを使用
+      today = targetDate;
+    } else {
+      // 日本時間で今日の日付を取得（UTC基準で作成）
+      const now = new Date();
+      const jstNow = new Date(now.getTime() + 9 * 60 * 60 * 1000); // UTC+9時間
+      today = new Date(
+        Date.UTC(
+          jstNow.getUTCFullYear(),
+          jstNow.getUTCMonth(),
+          jstNow.getUTCDate()
+        )
+      );
+    }
 
     return await (
       prisma as unknown as PrismaClient
@@ -342,6 +362,38 @@ export class AttendanceService {
       orderBy: { date: "desc" },
       take: limit,
       skip: offset,
+    });
+  }
+
+  /**
+   * 指定された日付範囲の勤怠記録を取得（日本時間基準）
+   */
+  static async getAttendanceRecordsByJSTDateRange(
+    userId: string,
+    startDateJST: Date,
+    endDateJST: Date
+  ) {
+    // 日本時間の日付をUTC基準の日付に変換
+    const startDateUTC = new Date(
+      Date.UTC(
+        startDateJST.getFullYear(),
+        startDateJST.getMonth(),
+        startDateJST.getDate()
+      )
+    );
+
+    const endDateUTC = new Date(
+      Date.UTC(
+        endDateJST.getFullYear(),
+        endDateJST.getMonth(),
+        endDateJST.getDate()
+      )
+    );
+
+    return await this.getAttendanceRecords({
+      userId,
+      startDate: startDateUTC,
+      endDate: endDateUTC,
     });
   }
 }

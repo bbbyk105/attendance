@@ -16,11 +16,21 @@ export async function POST(request: NextRequest) {
     }
 
     const now = new Date();
-    const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+
+    // 日本時間で今日の日付を取得（UTC基準で作成）
+    const jstNow = new Date(now.getTime() + 9 * 60 * 60 * 1000); // UTC+9時間
+    const today = new Date(
+      Date.UTC(
+        jstNow.getUTCFullYear(),
+        jstNow.getUTCMonth(),
+        jstNow.getUTCDate()
+      )
+    );
 
     // 今日の勤怠記録があるかチェック
     const existingRecord = await AttendanceService.getTodayAttendance(
-      decoded.userId
+      decoded.userId,
+      today // UTC基準の日付を渡す
     );
 
     if (existingRecord && existingRecord.clockIn) {
@@ -41,7 +51,7 @@ export async function POST(request: NextRequest) {
       // 新規レコード作成
       record = await AttendanceService.createAttendanceRecord({
         userId: decoded.userId,
-        date: today,
+        date: today, // UTC基準の日付で保存
         clockIn: now,
         status: "PRESENT",
       });

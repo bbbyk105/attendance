@@ -17,9 +17,20 @@ export async function POST(request: NextRequest) {
 
     const now = new Date();
 
+    // 日本時間で今日の日付を取得（UTC基準で作成）
+    const jstNow = new Date(now.getTime() + 9 * 60 * 60 * 1000); // UTC+9時間
+    const today = new Date(
+      Date.UTC(
+        jstNow.getUTCFullYear(),
+        jstNow.getUTCMonth(),
+        jstNow.getUTCDate()
+      )
+    );
+
     // 今日の勤怠記録を取得
     const existingRecord = await AttendanceService.getTodayAttendance(
-      decoded.userId
+      decoded.userId,
+      today
     );
 
     if (!existingRecord || !existingRecord.clockIn) {

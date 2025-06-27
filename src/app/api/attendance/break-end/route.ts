@@ -17,9 +17,20 @@ export async function POST(request: NextRequest) {
 
     const now = new Date();
 
+    // 日本時間で今日の日付を取得（UTC基準で作成）
+    const jstNow = new Date(now.getTime() + 9 * 60 * 60 * 1000); // UTC+9時間
+    const today = new Date(
+      Date.UTC(
+        jstNow.getUTCFullYear(),
+        jstNow.getUTCMonth(),
+        jstNow.getUTCDate()
+      )
+    );
+
     // 今日の勤怠記録を取得
     const existingRecord = await AttendanceService.getTodayAttendance(
-      decoded.userId
+      decoded.userId,
+      today
     );
 
     if (!existingRecord || !existingRecord.clockIn) {
@@ -29,21 +40,25 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    if (existingRecord.clockOut) {
+      return NextResponse.json({ error: "既に退勤済みです" }, { status: 400 });
+    }
+
     if (!existingRecord.breakStart) {
       return NextResponse.json(
-        { error: "休憩開始記録がありません" },
+        { error: "休憩を開始していません" },
         { status: 400 }
       );
     }
 
     if (existingRecord.breakEnd) {
       return NextResponse.json(
-        { error: "既に休憩終了済みです" },
+        { error: "既に休憩を終了しています" },
         { status: 400 }
       );
     }
 
-    // レコードを更新（updatedAtは自動で更新されるため除外）
+    // レコードを更新
     const record = await AttendanceService.updateAttendanceRecord(
       existingRecord.id,
       {
